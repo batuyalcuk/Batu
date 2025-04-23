@@ -1,174 +1,241 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+import pygame
+import random
+import time
+import json
+import os
 
-# C extensions
-*.so
+pygame.init()
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+WIDTH, HEIGHT = 800, 600
+win = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("PacSnake Game")
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+clock = pygame.time.Clock()
+font = pygame.font.SysFont(None, 36)
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+BLUE = (0, 0, 255)
+PURPLE = (128, 0, 128)
+PINK = (255, 105, 180)
+ORANGE = (255, 165, 0)
+CYAN = (0, 255, 255)
+RAINBOW = [(255,0,0),(255,127,0),(255,255,0),(0,255,0),(0,0,255),(75,0,130),(148,0,211)]
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+colors = {
+    "Green": (GREEN, 0),
+    "Blue": (BLUE, 15),
+    "Purple": (PURPLE, 15),
+    "Pink": (PINK, 15),
+    "Orange": (ORANGE, 15),
+    "Red": (RED, 10),
+    "Yellow": (YELLOW, 10),
+    "White": (WHITE, 15),
+    "Black": (BLACK, 15),
+    "Rainbow": (RAINBOW, 30)
+}
 
-# Translations
-*.mo
-*.pot
+SAVE_FILE = "pacsnake_save.json"
+if os.path.exists(SAVE_FILE):
+    with open(SAVE_FILE, "r") as f:
+        save_data = json.load(f)
+else:
+    save_data = {
+        "money": 0,
+        "owned_colors": ["Green"],
+        "selected_color": "Green",
+        "statistics": {"games_played": 0, "total_score": 0, "total_time": 0}
+    }
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+money = save_data["money"]
+owned_colors = save_data["owned_colors"]
+selected_color = save_data["selected_color"]
+statistics = save_data.get("statistics", {"games_played": 0, "total_score": 0, "total_time": 0})
 
-# Flask stuff:
-instance/
-.webassets-cache
+def save_game():
+    save_data["money"] = money
+    save_data["owned_colors"] = owned_colors
+    save_data["selected_color"] = selected_color
+    save_data["statistics"] = statistics
+    with open(SAVE_FILE, "w") as f:
+        json.dump(save_data, f)
 
-# Scrapy stuff:
-.scrapy
+def draw_text(text, x, y, color=WHITE):
+    img = font.render(text, True, color)
+    win.blit(img, (x, y))
 
-# Sphinx documentation
-docs/_build/
+def draw_button(text, x, y, width, height, color, text_color=WHITE):
+    pygame.draw.rect(win, color, (x, y, width, height))
+    draw_text(text, x + (width - len(text) * 10) // 2, y + (height - 36) // 2, text_color)
 
-# PyBuilder
-.pybuilder/
-target/
+def main_menu():
+    color_index = 0
+    while True:
+        win.fill(RAINBOW[color_index % len(RAINBOW)])
+        color_index += 1
 
-# Jupyter Notebook
-.ipynb_checkpoints
+        draw_text("PAC-SNAKE", 320, 100, YELLOW)
+        draw_button("Play", 320, 220, 160, 50, BLUE)
+        draw_button("Shop", 320, 290, 160, 50, GREEN)
+        draw_button("İstatistikler", 320, 360, 160, 50, PURPLE)
+        draw_button("Quit", 320, 430, 160, 50, RED)
 
-# IPython
-profile_default/
-ipython_config.py
+        pygame.display.update()
 
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_game()
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                if 320 <= x <= 480:
+                    if 220 <= y <= 270:
+                        game_loop()
+                    elif 290 <= y <= 340:
+                        shop()
+                    elif 360 <= y <= 410:
+                        statistics_menu()
+                    elif 430 <= y <= 480:
+                        save_game()
+                        pygame.quit()
+                        exit()
 
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
+def shop():
+    global money, owned_colors, selected_color
+    scroll_offset = 0
+    while True:
+        win.fill(BLACK)
+        draw_text("SHOP - Renk Satın Al", 280, 30)
+        draw_text(f"Paran: {money} 🪙", 30, 80, YELLOW)
 
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#uv.lock
+        y = 120 - scroll_offset
+        for i, (name, (color, price)) in enumerate(colors.items()):
+            draw_button(f"{name} - {price} 🪙", 100, y + i * 60, 200, 50, color if type(color) == tuple else WHITE)
+            status = "Sahip" if name in owned_colors else "Satın Al"
+            draw_text(status, 350, y + i * 60, GREEN if status == "Sahip" else RED)
 
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-#poetry.lock
+        draw_button("Geri Dön (ESC)", 300, 550, 200, 50, ORANGE)
+        pygame.display.update()
 
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#pdm.lock
-#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
-#   in version control.
-#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
-.pdm.toml
-.pdm-python
-.pdm-build/
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_game()
+                pygame.quit()
+                exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = pygame.mouse.get_pos()
+                index = (my - 120 + scroll_offset) // 60
+                if 0 <= index < len(colors):
+                    name = list(colors.keys())[index]
+                    if name in owned_colors:
+                        selected_color = name
+                    elif money >= colors[name][1]:
+                        money -= colors[name][1]
+                        owned_colors.append(name)
+                        selected_color = name
+                        save_game()
+            if event.type == pygame.MOUSEWHEEL:
+                scroll_offset += event.y * 20
+                scroll_offset = max(min(scroll_offset, 0), len(colors) * 60 - HEIGHT + 120)
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
+def statistics_menu():
+    while True:
+        win.fill(BLACK)
+        draw_text("📊 İstatistikler", 320, 50, CYAN)
+        draw_text(f"Oynanan Oyun: {statistics['games_played']}", 100, 150)
+        draw_text(f"Toplam Skor: {statistics['total_score']}", 100, 200)
+        draw_text(f"Toplam Süre: {statistics['total_time']} saniye", 100, 250)
 
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
+        draw_button("ESC ile Geri Dön", 300, 500, 200, 50, ORANGE)
+        pygame.display.update()
 
-# SageMath parsed files
-*.sage.py
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_game()
+                pygame.quit()
+                exit()
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                return
 
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+def game_loop():
+    global money, statistics
+    x, y = WIDTH // 2, HEIGHT // 2
+    vel = 20
+    dx, dy = 0, 0
+    snake = [(x, y)]
+    food = (random.randint(0, WIDTH // 20 - 1) * 20, random.randint(0, HEIGHT // 20 - 1) * 20)
+    timer = 15
+    last_time = time.time()
+    score = 0
+    fps = 10
 
-# Spyder project settings
-.spyderproject
-.spyproject
+    start_time = time.time()
+    run = True
+    while run:
+        win.fill(BLACK)
+        now = time.time()
+        if now - last_time >= 1:
+            timer -= 1
+            last_time = now
+            if timer <= 0:
+                run = False
 
-# Rope project settings
-.ropeproject
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                save_game()
+                pygame.quit()
+                exit()
 
-# mkdocs documentation
-/site
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: dx, dy = -vel, 0
+        if keys[pygame.K_RIGHT]: dx, dy = vel, 0
+        if keys[pygame.K_UP]: dx, dy = 0, -vel
+        if keys[pygame.K_DOWN]: dx, dy = 0, vel
+        if keys[pygame.K_ESCAPE]: return
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+        x += dx
+        y += dy
+        x = max(0, min(WIDTH - 20, x))
+        y = max(0, min(HEIGHT - 20, y))
 
-# Pyre type checker
-.pyre/
+        snake.append((x, y))
+        if len(snake) > score + 1:
+            snake.pop(0)
 
-# pytype static type analyzer
-.pytype/
+        if (x, y) == food:
+            score += 1
+            money += 5
+            food = (random.randint(0, WIDTH // 20 - 1) * 20, random.randint(0, HEIGHT // 20 - 1) * 20)
+            timer = 15
+            save_game()
 
-# Cython debug symbols
-cython_debug/
+        color = colors[selected_color][0] if selected_color != "Rainbow" else RAINBOW[(score) % len(RAINBOW)]
+        for segment in snake:
+            pygame.draw.rect(win, color, (*segment, 20, 20))
 
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+        pygame.draw.rect(win, YELLOW, (*food, 20, 20))
+        draw_text(f"Skor: {score}", 10, 10)
+        draw_text(f"Para: {money} 🪙", 10, 40)
+        draw_text(f"Süre: {timer}", 700, 10)
+        pygame.display.update()
+        clock.tick(fps)
 
-# Ruff stuff:
-.ruff_cache/
+    statistics["games_played"] += 1
+    statistics["total_score"] += score
+    statistics["total_time"] += int(time.time() - start_time)
 
-# PyPI configuration file
-.pypirc
+    draw_text("Süre doldu!", 330, 250, RED)
+    draw_text("Ana menüye dönülüyor...", 270, 300, RED)
+    pygame.display.update()
+    pygame.time.delay(2000)
+    save_game()
+    return
+
+main_menu()
+
